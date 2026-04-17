@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 
-API_URL = "http://127.0.0.1:5000"
+API_URL = "https://digi-flask.vercel.app/"
 
 features = [
     "fan1","fan2",
