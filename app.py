@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import requests
 
-API_URL = "https://digi-flask.vercel.app/api/"
-
-
+# 🔴 Your deployed Flask (Vercel)
+API_URL = "https://digi-flask.vercel.app/api"
 
 features = [
     "fan1","fan2",
@@ -32,12 +31,18 @@ def get_rul_series(df):
 
     df_clean = df.fillna(0)
 
-    response = requests.post(
-        f"{API_URL}/predict_series",
-        json=df_clean.to_dict(orient="records")
-    )
+    try:
+        response = requests.post(
+            f"{API_URL}/predict",
+            json=df_clean.to_dict(orient="records"),
+            timeout=30
+        )
 
-    return response.json()["rul_series"]
+        return response.json()["rul_series"]
+
+    except Exception as e:
+        st.error(f"API Error: {e}")
+        return None
 
 # =========================
 # TABS
@@ -88,144 +93,47 @@ with tab1:
     if rul_series is None:
         st.warning("Need at least 50 rows")
     else:
-        latest = [r for r in rul_series if r is not None][-1]
+        valid = [r for r in rul_series if r is not None]
 
-        st.metric("RUL (Years)", f"{latest['years']:.2f}")
-        st.metric("RUL (Hours)", f"{latest['hours']:.0f}")
-
-# =========================
-# TAB 2 — GRAPHS
-# =========================
-with tab2:
-
-    df = st.session_state.data.tail(300)
-
-    if not df.empty:
-
-        st.line_chart(df[["fan1","fan2"]])
-        st.line_chart(df[["cpu_temp","gpu_temp","nvidia_temp"]])
-        st.line_chart(df[["current","power"]])
-
-        rul_series = get_rul_series(df)
-
-        if rul_series:
-            df_plot = df.copy()
-            df_plot["RUL_years"] = [
-                r["years"] if r else None for r in rul_series[-len(df):]
-            ]
-
-            st.line_chart(df_plot["RUL_years"])
-
-# =========================
-# TAB 3 — TABLE
-# =========================
-with tab3:
-    st.dataframe(st.session_state.data.tail(300))
-            ignore_index=True
-        )
-
-    if st.button("Add 50 Rows"):
-        rows = pd.DataFrame([input_data]*50)
-        st.session_state.data = pd.concat(
-            [st.session_state.data, rows],
-            ignore_index=True
-        )
-
-# =========================
-# TAB 1 — RUL
-# =========================
-with tab1:
-
-    df = st.session_state.data
-    rul_series = get_rul_series(df)
-
-    if rul_series is None:
-        st.warning("Need at least 50 rows")
-    else:
-        latest = [r for r in rul_series if r is not None][-1]
-
-        st.metric("RUL (Years)", f"{latest['years']:.2f}")
-        st.metric("RUL (Hours)", f"{latest['hours']:.0f}")
-
-# =========================
-# TAB 2 — GRAPHS
-# =========================
-with tab2:
-
-    df = st.session_state.data.tail(300)
-
-    if not df.empty:
-
-        st.line_chart(df[["fan1","fan2"]])
-        st.line_chart(df[["cpu_temp","gpu_temp","nvidia_temp"]])
-        st.line_chart(df[["current","power"]])
-
-        rul_series = get_rul_series(df)
-
-        if rul_series:
-            df_plot = df.copy()
-            df_plot["RUL_years"] = [
-                r["years"] if r else None for r in rul_series[-len(df):]
-            ]
-            st.line_chart(df_plot["RUL_years"])
-
-# =========================
-# TAB 3 — TABLE
-# =========================
-with tab3:
-    st.dataframe(st.session_state.data.tail(300))
-
-    response = requests.post(
-        f"{API_URL}/predict_batch",
-        json=df.to_dict(orient="records")
-    )
-
-    return response.json()["RUL"]
-
-
-# =========================
-# TAB 1 — RUL
-# =========================
-with tab1:
-
-    rul = get_rul(st.session_state.data)
-
-    if rul is None:
-        st.warning("Need at least 50 rows")
-    else:
-        st.metric("RUL", f"{rul:.4f}")
-
-        if rul > 0.7:
-            st.success("Fan is Healthy ✅")
-        elif rul > 0.4:
-            st.warning("Moderate Wear ⚠️")
+        if len(valid) == 0:
+            st.warning("Waiting for enough data...")
         else:
-            st.error("Critical Condition 🚨")
+            latest = valid[-1]
 
+            st.metric("RUL (Years)", f"{latest['years']:.2f}")
+            st.metric("RUL (Hours)", f"{latest['hours']:.0f}")
 
 # =========================
 # TAB 2 — GRAPHS
 # =========================
 with tab2:
 
-    df = st.session_state.data
+    df = st.session_state.data.tail(300)
 
     if not df.empty:
+
+        st.subheader("Fan Speed")
         st.line_chart(df[["fan1","fan2"]])
-        st.line_chart(df[["cpu_temp","gpu_temp"]])
+
+        st.subheader("Temperature")
+        st.line_chart(df[["cpu_temp","gpu_temp","nvidia_temp"]])
+
+        st.subheader("Electrical")
         st.line_chart(df[["current","power"]])
 
-        rul = get_rul(df)
+        rul_series = get_rul_series(df)
 
-        if rul:
+        if rul_series:
             df_plot = df.copy()
-            df_plot["RUL"] = rul
-            st.line_chart(df_plot["RUL"])
+            df_plot["RUL_years"] = [
+                r["years"] if r else None for r in rul_series[-len(df):]
+            ]
+
+            st.subheader("RUL Over Time")
+            st.line_chart(df_plot["RUL_years"])
 
 # =========================
 # TAB 3 — TABLE
 # =========================
 with tab3:
-
-    df = st.session_state.data.tail(300)
-    st.dataframe(df)
+    st.dataframe(st.session_state.data.tail(300))
